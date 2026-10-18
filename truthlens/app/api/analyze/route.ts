@@ -4,13 +4,18 @@ const img = (d: string) => { const [m, b] = d.split(','); return { type: 'image'
 const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 
 async function claude(content: any[]) {
+  // Uses Google Gemini (free tier). Function name kept so the rest of the code is unchanged.
   try {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
+    const parts = content.map((c: any) => c.type === 'image'
+      ? { inline_data: { mime_type: c.source.media_type, data: c.source.data } }
+      : { text: c.text });
+    const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: 'POST',
-      headers: { 'x-api-key': process.env.ANTHROPIC_API_KEY || '', 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-      body: JSON.stringify({ model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5', max_tokens: 1500, messages: [{ role: 'user', content }] }),
+      headers: { 'x-goog-api-key': process.env.GEMINI_API_KEY || '', 'content-type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts }], generationConfig: { responseMimeType: 'application/json', temperature: 0.2 } }),
     });
-    const j = await r.json(); const m = (j.content?.[0]?.text || '').match(/\{[\s\S]*\}/);
+    const j = await r.json(); const m = (j.candidates?.[0]?.content?.parts?.[0]?.text || '').match(/\{[\s\S]*\}/);
     return m ? JSON.parse(m[0]) : {};
   } catch { return {}; }
 }
